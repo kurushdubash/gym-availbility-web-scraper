@@ -21,7 +21,8 @@ def get_email_client():
 	return server
 
 def send_text(product_title, product_status, link, sent_already):
-	if not sent_already:
+	if sent_already:
+		logging.info("Already sent a text, skipping sending a text for {}".format(product_title))
 		return
 
 	server = get_email_client()
@@ -46,62 +47,61 @@ def send_text(product_title, product_status, link, sent_already):
 		logging.error("Failed to send text!")
 		logging.error(e)
 
-def main():
+def main(found_rack, found_dips):
 	found_rack = False
 	found_dips = False
 
 	# Use tiny url because tmobile thinks other link is spam
 	urls = ["https://t.ly/XJFr", "https://www.repfitness.com/rep-power-rack-dip-attachment"]
-	session = HTMLSession()
+	while True:
+		session = HTMLSession()
+		for url in urls:
+			resp = session.get(url)
 
-	for url in urls:
-		resp = session.get(url)
-
-		product_title = resp.html.find("h1.page-title", first=True).text
-		product_info = resp.html.find("div.product-info-stock-sku", first=True)
-		
-		product_status = None
-		use_div = False
-
-		# This check is due to the company's website having inconsistent formats for their HTML page :(
-		if len(product_info.find('p.unavailable')) > 0:
-			product_status = product_info.find('p.unavailable', first=True)
-		elif len(product_info.find('div.unavailable')) > 0:
-			product_status = product_info.find('div.unavailable', first=True)
-			use_div = True
-		
-		# Check stock of item
-		if product_status is not None and product_status.text == 'Out of Stock':
-			logging.info("{} still out of stock...checking again in a 5 mins".format(product_title))
-		else:
-			logging.info("Found an item!")
-
-			sent_already = False
-			# This tells us if we already sent a text for this items availbility
-			if found_rack and '1100' in product_title or found_dips and 'dips' in product_title:
-				sent_already = True
-
-			if use_div:
-				product_status = product_info.find('div.stock', first=True)
-			else:
-				product_status = product_info.find('p.stock', first=True)
- 
-			logging.info("{} page shows the rack is: {}".format(product_title, product_status.text))
-			send_text(product_title, product_status.text, url, sent_already)
+			product_title = resp.html.find("h1.page-title", first=True).text
+			product_info = resp.html.find("div.product-info-stock-sku", first=True)
 			
+			product_status = None
+			use_div = False
 
-			# Update that we've sent a text for this item
-			if '1100' in product_title:
-				found_rack = True
+			# This check is due to the company's website having inconsistent formats for their HTML page :(
+			if len(product_info.find('p.unavailable')) > 0:
+				product_status = product_info.find('p.unavailable', first=True)
+			elif len(product_info.find('div.unavailable')) > 0:
+				product_status = product_info.find('div.unavailable', first=True)
+				use_div = True
+			
+			# Check stock of item
+			if product_status is not None and product_status.text == 'Out of Stock':
+				logging.info("{} still out of stock...checking again in a 5 mins".format(product_title))
 			else:
-				found_dips = True
-			# Lets sleep for a second so as to not rate limit our email server
-			time.sleep(1)
-		
-	logging.info("")
-	# Let's check back in 5 minutes
-	time.sleep(WAIT_TIME)
+				logging.info("Found an item!")
+
+				sent_already = False
+				# This tells us if we already sent a text for this items availbility
+				if (found_rack and "1100" in product_title) or (found_dips and 'Dip' in product_title):
+					sent_already = True
+
+				if use_div:
+					product_status = product_info.find('div.stock', first=True)
+				else:
+					product_status = product_info.find('p.stock', first=True)
+	 
+				logging.info("{} page shows the rack is: {}".format(product_title, product_status.text))
+				send_text(product_title, product_status.text, url, sent_already)
+				
+
+				# Update that we've sent a text for this item
+				if "1100" in product_title:
+					found_rack = True
+				else:
+					found_dips = True
+				# Lets sleep for a second so as to not rate limit our email server
+				time.sleep(1)
+			
+		logging.info("")
+		# Let's check back in 5 minutes
+		time.sleep(WAIT_TIME)
 
 establish_logger()
-while True:
-    main()
+main()
