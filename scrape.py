@@ -21,7 +21,7 @@ def get_email_client():
 	return server
 
 def send_text(product_title, product_status, link, sent_already):
-	if sent_already:
+	if not sent_already:
 		return
 
 	server = get_email_client()
